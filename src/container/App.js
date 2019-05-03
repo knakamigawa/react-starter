@@ -1,8 +1,8 @@
 // @flow
 import React from 'react'
 import './App.css'
-import { ToDo } from './compornents/ToDo'
-import { InputToDo } from './compornents/InputToDo'
+import { ToDo } from '../compornents/ToDo'
+import { InputToDo } from '../compornents/InputToDo'
 
 type Props = {
   name: string
