@@ -1,5 +1,5 @@
 import React from 'react'
-import { Hello } from '../src/compornents/ToDo'
+import { ToDo } from '../src/compornents/ToDo'
 import { withKnobs, text } from '@storybook/addon-knobs/react'
 
 import { storiesOf } from '@storybook/react'
@@ -10,5 +10,5 @@ stories.addDecorator(withKnobs)
 stories.add('show hello', name => {
   const inputName = text('Name', 'りねっと')
 
-  return <Hello name={inputName} />
+  return <ToDo title={inputName} days={1} key={1} />
 })
