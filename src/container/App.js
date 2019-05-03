@@ -12,18 +12,18 @@ class App extends React.Component {
   constructor(props: Props) {
     super(props)
     this.state = {
-      todos: []
+      todoList: []
     }
   }
 
   render() {
     const save = (title, days) => {
-      const newTodos = this.state.todos
-      newTodos.push({ title: title, days: days })
-      this.setState({ todos: newTodos })
+      const newTodoList = this.state.todoList
+      newTodoList.push({ title: title, days: days })
+      this.setState({ todoList: newTodoList })
     }
 
-    const todoViews = this.state.todos.map((todo, idx) => {
+    const todoViews = this.state.todoList.map((todo, idx) => {
       return <ToDo title={todo.title} days={todo.days} key={idx} />
     })
 

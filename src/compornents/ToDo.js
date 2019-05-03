@@ -12,7 +12,7 @@ type Props = {
 export const ToDo = (props: Props) => {
   return (
     <div key={props.key} className={styles.HelloStyle}>
-      Todo, {props.title} ! days {props.days}
+      Todo, {props.title} days {props.days}
     </div>
   )
 }
