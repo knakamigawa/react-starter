@@ -1,7 +1,6 @@
 // @flow
 import React from 'react'
 
-import styles from './ToDo.module.css'
 import PropTypes from 'prop-types'
 const { useState, useCallback } = React
 
@@ -28,4 +27,8 @@ export const InputToDo = (props: Props) => {
       <button onClick={save}>保存</button>
     </div>
   )
+}
+
+InputToDo.propTypes = {
+  action: PropTypes.func.isRequired
 }
