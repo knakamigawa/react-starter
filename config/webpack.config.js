@@ -5,26 +5,21 @@ const isWsl = require('is-wsl')
 const path = require('path')
 const webpack = require('webpack')
 const resolve = require('resolve')
-const PnpWebpackPlugin = require('pnp-webpack-plugin')
 const HtmlWebpackPlugin = require('html-webpack-plugin')
 const CaseSensitivePathsPlugin = require('case-sensitive-paths-webpack-plugin')
 const InlineChunkHtmlPlugin = require('react-dev-utils/InlineChunkHtmlPlugin')
 const TerserPlugin = require('terser-webpack-plugin')
 const MiniCssExtractPlugin = require('mini-css-extract-plugin')
-const OptimizeCSSAssetsPlugin = require('optimize-css-assets-webpack-plugin')
-const safePostCssParser = require('postcss-safe-parser')
-const ManifestPlugin = require('webpack-manifest-plugin')
+const CssMinimizerPlugin = require('css-minimizer-webpack-plugin')
+const { WebpackManifestPlugin } = require('webpack-manifest-plugin')
 const InterpolateHtmlPlugin = require('react-dev-utils/InterpolateHtmlPlugin')
 const WorkboxWebpackPlugin = require('workbox-webpack-plugin')
-const WatchMissingNodeModulesPlugin = require('react-dev-utils/WatchMissingNodeModulesPlugin')
 const ModuleScopePlugin = require('react-dev-utils/ModuleScopePlugin')
-const getCSSModuleLocalIdent = require('react-dev-utils/getCSSModuleLocalIdent')
 const paths = require('./paths')
 const modules = require('./modules')
 const getClientEnvironment = require('./env')
 const ModuleNotFoundPlugin = require('react-dev-utils/ModuleNotFoundPlugin')
 const ForkTsCheckerWebpackPlugin = require('react-dev-utils/ForkTsCheckerWebpackPlugin')
-const typescriptFormatter = require('react-dev-utils/typescriptFormatter')
 
 const postcssNormalize = require('postcss-normalize')
 
@@ -82,22 +77,21 @@ module.exports = function(webpackEnv) {
         // package.json
         loader: require.resolve('postcss-loader'),
         options: {
-          // Necessary for external CSS imports to work
-          // https://github.com/facebook/create-react-app/issues/2677
-          ident: 'postcss',
-          plugins: () => [
-            require('postcss-flexbugs-fixes'),
-            require('postcss-preset-env')({
-              autoprefixer: {
-                flexbox: 'no-2009'
-              },
-              stage: 3
-            }),
-            // Adds PostCSS Normalize as the reset css with default options,
-            // so that it honors browserslist config in package.json
-            // which in turn let's users customize the target behavior as per their needs.
-            postcssNormalize()
-          ],
+          postcssOptions: {
+            plugins: [
+              require('postcss-flexbugs-fixes'),
+              require('postcss-preset-env')({
+                autoprefixer: {
+                  flexbox: 'no-2009'
+                },
+                stage: 3
+              }),
+              // Adds PostCSS Normalize as the reset css with default options,
+              // so that it honors browserslist config in package.json
+              // which in turn let's users customize the target behavior as per their needs.
+              postcssNormalize()
+            ]
+          },
           sourceMap: isEnvProduction && shouldUseSourceMap
         }
       }
@@ -150,8 +144,6 @@ module.exports = function(webpackEnv) {
       // There will be one main bundle, and one file per asynchronous chunk.
       // In development, it does not produce real files.
       filename: isEnvProduction ? 'static/js/[name].[contenthash:8].js' : isEnvDevelopment && 'static/js/bundle.js',
-      // TODO: remove this when upgrading to webpack 5
-      futureEmitAssets: true,
       // There are also additional JS chunk files if you use code splitting.
       chunkFilename: isEnvProduction
         ? 'static/js/[name].[contenthash:8].chunk.js'
@@ -207,26 +199,18 @@ module.exports = function(webpackEnv) {
           // Default number of concurrent runs: os.cpus().length - 1
           // Disabled on WSL (Windows Subsystem for Linux) due to an issue with Terser
           // https://github.com/webpack-contrib/terser-webpack-plugin/issues/21
-          parallel: !isWsl,
-          // Enable file caching
-          cache: true,
-          sourceMap: shouldUseSourceMap
+          parallel: !isWsl
         }),
         // This is only used in production mode
-        new OptimizeCSSAssetsPlugin({
-          cssProcessorOptions: {
-            parser: safePostCssParser,
-            map: shouldUseSourceMap
-              ? {
-                  // `inline: false` forces the sourcemap to be output into a
-                  // separate file
-                  inline: false,
-                  // `annotation: true` appends the sourceMappingURL to the end of
-                  // the css file, helping the browser find the sourcemap
-                  annotation: true
-                }
-              : false
-          }
+        new CssMinimizerPlugin({
+          minimizerOptions: {
+            preset: [
+              'default',
+              {
+                discardComments: { removeAll: true },
+              },
+            ],
+          },
         })
       ],
       // Automatically split vendor and commons
@@ -259,9 +243,6 @@ module.exports = function(webpackEnv) {
         'react-native': 'react-native-web'
       },
       plugins: [
-        // Adds support for installing with Plug'n'Play, leading to faster installs and adding
-        // guards against forgotten dependencies and such.
-        PnpWebpackPlugin,
         // Prevents users from importing files from outside of src/ (or node_modules/).
         // This often causes confusion because we only process files within src/ with babel.
         // To fix this, we prevent you from importing files out of src/ -- if you'd like to,
@@ -270,13 +251,7 @@ module.exports = function(webpackEnv) {
         new ModuleScopePlugin(paths.appSrc, [paths.appPackageJson])
       ]
     },
-    resolveLoader: {
-      plugins: [
-        // Also related to Plug'n'Play, but this time it tells Webpack to load its loaders
-        // from the current package.
-        PnpWebpackPlugin.moduleLoader(module)
-      ]
-    },
+    resolveLoader: {},
     module: {
       strictExportPresence: true,
       rules: [
@@ -285,20 +260,21 @@ module.exports = function(webpackEnv) {
 
         // First, run the linter.
         // It's important to do this before Babel processes the JS.
-        {
-          test: /\.(js|mjs|jsx|ts|tsx)$/,
-          enforce: 'pre',
-          use: [
-            {
-              options: {
-                formatter: require.resolve('react-dev-utils/eslintFormatter'),
-                eslintPath: require.resolve('eslint')
-              },
-              loader: require.resolve('eslint-loader')
-            }
-          ],
-          include: paths.appSrc
-        },
+        // eslint-loader is deprecated in webpack 5, consider using eslint-webpack-plugin instead
+        // {
+        //   test: /\.(js|mjs|jsx|ts|tsx)$/,
+        //   enforce: 'pre',
+        //   use: [
+        //     {
+        //       options: {
+        //         formatter: require.resolve('react-dev-utils/eslintFormatter'),
+        //         eslintPath: require.resolve('eslint')
+        //       },
+        //       loader: require.resolve('eslint-loader')
+        //     }
+        //   ],
+        //   include: paths.appSrc
+        // },
         {
           // "oneOf" will traverse all following loaders until one will
           // match the requirements. When no loader matches it will fall
@@ -392,8 +368,13 @@ module.exports = function(webpackEnv) {
               use: getStyleLoaders({
                 importLoaders: 1,
                 sourceMap: isEnvProduction && shouldUseSourceMap,
-                modules: true,
-                getLocalIdent: getCSSModuleLocalIdent
+                esModule: false,
+                modules: {
+                  auto: true,
+                  localIdentName: isEnvProduction
+                    ? '[hash:base64]'
+                    : '[path][name]__[local]--[hash:base64:5]'
+                }
               })
             },
             // Opt-in support for SASS (using .scss or .sass extensions).
@@ -423,8 +404,13 @@ module.exports = function(webpackEnv) {
                 {
                   importLoaders: 2,
                   sourceMap: isEnvProduction && shouldUseSourceMap,
-                  modules: true,
-                  getLocalIdent: getCSSModuleLocalIdent
+                  esModule: false,
+                  modules: {
+                    auto: true,
+                    localIdentName: isEnvProduction
+                      ? '[hash:base64]'
+                      : '[path][name]__[local]--[hash:base64:5]'
+                  }
                 },
                 'sass-loader'
               )
@@ -504,10 +490,8 @@ module.exports = function(webpackEnv) {
       // See https://github.com/facebook/create-react-app/issues/240
       isEnvDevelopment && new CaseSensitivePathsPlugin(),
       // If you require a missing module and then `npm install` it, you still have
-      // to restart the development server for Webpack to discover it. This plugin
-      // makes the discovery automatic so you don't have to restart.
-      // See https://github.com/facebook/create-react-app/issues/186
-      isEnvDevelopment && new WatchMissingNodeModulesPlugin(paths.appNodeModules),
+      // WatchMissingNodeModulesPlugin is no longer available in react-dev-utils@12
+      // isEnvDevelopment && new WatchMissingNodeModulesPlugin(paths.appNodeModules),
       isEnvProduction &&
         new MiniCssExtractPlugin({
           // Options similar to the same options in webpackOptions.output
@@ -518,7 +502,7 @@ module.exports = function(webpackEnv) {
       // Generate a manifest file which contains a mapping of all asset filenames
       // to their corresponding output file so that tools can pick it up without
       // having to parse `index.html`.
-      new ManifestPlugin({
+      new WebpackManifestPlugin({
         fileName: 'asset-manifest.json',
         publicPath: publicPath,
         generate: (seed, files) => {
@@ -537,16 +521,19 @@ module.exports = function(webpackEnv) {
       // solution that requires the user to opt into importing specific locales.
       // https://github.com/jmblog/how-to-optimize-momentjs-with-webpack
       // You can remove this if you don't use Moment.js:
-      new webpack.IgnorePlugin(/^\.\/locale$/, /moment$/),
+      new webpack.IgnorePlugin({
+        resourceRegExp: /^\.\/locale$/,
+        contextRegExp: /moment$/
+      }),
       // Generate a service worker script that will precache, and keep up to date,
       // the HTML & assets that are part of the Webpack build.
       isEnvProduction &&
         new WorkboxWebpackPlugin.GenerateSW({
           clientsClaim: true,
+          skipWaiting: true,
           exclude: [/\.map$/, /asset-manifest\.json$/],
-          importWorkboxFrom: 'cdn',
           navigateFallback: publicUrl + '/index.html',
-          navigateFallbackBlacklist: [
+          navigateFallbackDenylist: [
             // Exclude URLs starting with /_, as they're likely an API call
             new RegExp('^/_'),
             // Exclude URLs containing a dot, as they're likely a resource in
@@ -572,23 +559,12 @@ module.exports = function(webpackEnv) {
             '!**/src/setupTests.*'
           ],
           watch: paths.appSrc,
-          silent: true,
-          // The formatter is invoked directly in WebpackDevServerUtils during development
-          formatter: isEnvProduction ? typescriptFormatter : undefined
+          silent: true
         })
     ].filter(Boolean),
-    // Some libraries import Node modules but don't use them in the browser.
-    // Tell Webpack to provide empty mocks for them so importing them works.
-    node: {
-      module: 'empty',
-      dgram: 'empty',
-      dns: 'mock',
-      fs: 'empty',
-      http2: 'empty',
-      net: 'empty',
-      tls: 'empty',
-      child_process: 'empty'
-    },
+    // Webpack 5 removes automatic Node.js polyfills
+    // Set node to false to prevent polyfill injection
+    node: false,
     // Turn off performance processing because we utilize
     // our own hints via the FileSizeReporter
     performance: false
